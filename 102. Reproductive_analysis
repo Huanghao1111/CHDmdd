@@ -1,0 +1,277 @@
+#1 Reproductive Risk Factor Cleaning
+data2<-subset(data,data$Sex==0)
+
+#2 pregnancy
+data2$live_births <- ifelse(data2$`Number of live births | Instance 0` %in% c("", "Prefer not to answer"),NA,data2$`Number of live births | Instance 0`)
+data2$live_births_num <- as.numeric(data2$live_births)
+data2$livebirths <- factor(
+  ifelse(!is.na(data2$live_births_num) & data2$live_births_num >= 1, 1,
+         ifelse(!is.na(data2$live_births_num), 0, NA)),
+  levels = c(0,1), labels = c("0", "1"))
+
+data2$nolivebirths_raw <- ifelse(
+  data2$`Ever had stillbirth, spontaneous miscarriage or termination | Instance 0` %in% c("","Do not know", "Prefer not to answer"),
+  NA,data2$`Ever had stillbirth, spontaneous miscarriage or termination | Instance 0`)
+data2$nolivebirths <- factor(
+  ifelse(!is.na(data2$nolivebirths_raw) & data2$nolivebirths_raw == "Yes", 1,
+         ifelse(!is.na(data2$nolivebirths_raw), 0, NA)),
+  levels = c(0,1), labels = c("0", "1")
+)
+summary(data2$nolivebirths )
+
+data2$pregnancy <- factor(
+  case_when(
+    data2$livebirths == "1" ~ 1,         
+    data2$nolivebirths == "1" ~ 1,  
+    data2$livebirths == "0" & data2$nolivebirths == "0" ~ 0,
+    TRUE ~ NA_real_                           
+  ),
+  levels = c(0,1), labels = c("0", "1") 
+)
+summary(data2$pregnancy)
+table(data2$pregnancy)
+
+#2 livebirths_first_group
+data2$livebirths_number <- as.numeric(ifelse(data2$`Number of live births | Instance 0`%in% c("", "Prefer not to answer"),NA,
+                                             data2$`Number of live births | Instance 0`))
+table(data2$livebirths_number,useNA = "ifany")
+
+data2$livebirths_number_group<-as.factor(ifelse(data2$livebirths_number==2,0,
+                                                ifelse(data2$livebirths_number==0,1,
+                                                       ifelse(data2$livebirths_number==1,2,
+                                                              ifelse(data2$livebirths_number==3,3,
+                                                                     ifelse(data2$livebirths_number>=4,4,5))))))
+data2$livebirths_number_group2<-as.factor(ifelse(data2$livebirths_number>=1,1,0))
+table(data2$livebirths_number_group2,useNA = "ifany")
+
+
+data2$livebirths_first <- as.numeric(ifelse(data2$`Age at first live birth | Instance 0` %in% c("", "Do not remember", "Prefer not to answer"),NA,
+                              data2$`Age at first live birth | Instance 0`))
+table(data2$livebirths_first,useNA = "ifany")
+
+data2$livebirths_first_group<-as.factor(ifelse(data2$livebirths_first>=25&data2$livebirths_first<=26,0,
+                                               ifelse(data2$livebirths_first<21,1,
+                                                      ifelse(data2$livebirths_first>=21&data2$livebirths_first<=22,2,
+                                                             ifelse(data2$livebirths_first>=23&data2$livebirths_first<=24,3,
+                                                                    ifelse(data2$livebirths_first>=27&data2$livebirths_first<=29,4,
+                                                                           ifelse(data2$livebirths_first>29,5,6)))))))
+
+table(data2$livebirths_first_group,useNA = "ifany")
+
+subset_live <- data2[!is.na(data2$livebirths_number) & data2$livebirths_number >= 1, ]
+total_subset <- nrow(subset_live)               
+valid_age <- sum(!is.na(subset_live$livebirths_first)) 
+valid_age
+missing_age <- sum(is.na(subset_live$livebirths_first)) 
+missing_age
+missing_rate <- round(missing_age / total_subset * 100, 2) 
+missing_rate
+
+#3 miscarriages_number_group
+data2$miscarriages_number<- as.numeric(ifelse(data2$`Number of spontaneous miscarriages | Instance 0`%in% c("", "Do not know","Prefer not to answer"),NA,
+                                             data2$`Number of spontaneous miscarriages | Instance 0`))
+summary(data2$miscarriages_number)
+data2$miscarriages_number <- case_when(
+  data2$nolivebirths == 0 ~ 0,
+  data2$nolivebirths == 1 ~ data2$miscarriages_number,TRUE ~ NA_real_)
+
+summary(data2$miscarriages_number)
+
+data2$miscarriages_number_group<-as.factor(ifelse(data2$miscarriages_number==0,0,
+                                                  ifelse(data2$miscarriages_number==1,1,
+                                                         ifelse(data2$miscarriages_number>=2,2,3))))
+data2$miscarriages_number_group2<-as.factor(ifelse(data2$miscarriages_number==0,0,1))
+table(data2$miscarriages_number_group)
+summary(data2$miscarriages_number_group2)
+data2.2<-subset(data2,data2$nolivebirths==1)
+summary(data2.2$miscarriages_number)
+
+#5 stillbirths_number_group
+data2$stillbirths_number<- as.numeric(ifelse(data2$`Number of stillbirths | Instance 0`%in% c("", "Do not know","Prefer not to answer"),NA,
+                                              data2$`Number of stillbirths | Instance 0`))
+data2$stillbirths_number <- case_when(
+  data2$nolivebirths == 0 ~ 0,
+  data2$nolivebirths == 1 ~ data2$stillbirths_number,TRUE ~ NA_real_)
+
+table(data2$stillbirths_number)
+summary(data2$stillbirths_number)
+summary(data2.2$stillbirths_number)
+
+data2$stillbirths_number_group<-as.factor(ifelse(data2$stillbirths_number==0,0,
+                                                  ifelse(data2$stillbirths_number==1,1,
+                                                         ifelse(data2$stillbirths_number>=2,2,3))))
+
+data2$stillbirths_number_group2<-as.factor(ifelse(data2$stillbirths_number==0,0,1))
+
+#6 Parous
+data2$Parous <- factor(ifelse( (!is.na(data2$live_births_num) & data2$live_births_num >= 1) | 
+      (!is.na(data2$stillbirths_number) & data2$stillbirths_number >= 1),1,
+    ifelse(!is.na(data2$live_births_num) & !is.na(data2$stillbirths_number) & 
+        data2$live_births_num == 0 & data2$stillbirths_number == 0,0,NA)),
+  levels = c(0, 1), 
+  labels = c("0", "1"))
+table(data2$Parous,useNA = "ifany")
+
+
+#7 terminations_number_group
+data2$terminations_number<- as.numeric(ifelse(data2$`Number of pregnancy terminations | Instance 0`%in% c("", "Do not know","Prefer not to answer"),NA,
+                                             data2$`Number of pregnancy terminations | Instance 0`))
+
+data2$terminations_number <- case_when(
+  data2$nolivebirths == 0 ~ 0,
+  data2$nolivebirths == 1 ~ data2$terminations_number,TRUE ~ NA_real_)
+
+data2$terminations_number_group<-as.factor(ifelse(data2$terminations_number==0,0,
+                                                  ifelse(data2$terminations_number==1,1,
+                                                         ifelse(data2$terminations_number>=2,2,3))))
+
+data2$terminations_number_group2<-as.factor(ifelse(data2$terminations_number==0,0,1))
+table(data2$terminations_number_group2)
+summary(data2.2$terminations_number_group2)
+
+#8 menopause_age_group
+data2$menopause<- ifelse(data2$`Had menopause | Instance 0` %in% c("","Not sure - had a hysterectomy","Not sure - other reason","Prefer not to answer"),NA,
+                                           data2$`Had menopause | Instance 0`)
+
+data2$menopause <- as.factor(ifelse(!is.na(data2$menopause) & data2$menopause == "Yes",1,
+                                       ifelse(!is.na(data2$menopause), 0, NA)))
+table(data2$menopause)
+
+data2$menopause_age <- ifelse(data2$`Age at menopause (last menstrual period) | Instance 0` %in% c("", "Do not know", "Prefer not to answer"),NA,
+                                     data2$`Age at menopause (last menstrual period) | Instance 0`)
+data2$menopause_age <- as.numeric(data2$menopause_age)
+summary(data2$menopause_age)
+data_menopause<-subset(data2,data2$menopause==1)
+summary(data_menopause$menopause_age)
+data2$Early_natural_menopause <- as.factor(ifelse(!is.na(data2$menopause_age) & data2$menopause_age < 47,1,
+                                           ifelse(!is.na(data2$menopause_age), 0, NA)))
+
+
+data2$Postmenopausal<-as.factor(ifelse(data2$menopause_age<data2$Age,1,0))
+summary(data2$Early_natural_menopause)
+summary(data_menopause$Early_natural_menopause)
+
+data2$menopause_age_group<-as.factor(ifelse(data2$menopause_age==50,0,
+                                                     ifelse(data2$menopause_age<47,1,
+                                                            ifelse(data2$menopause_age>=47&data2$menopause_age<=49,2,
+                                                                   ifelse(data2$menopause_age>=51&data2$menopause_age<=52,3,
+                                                                          ifelse(data2$menopause_age>=53&data2$menopause_age<=54,4,
+                                                                                 ifelse(data2$menopause_age>54,5,6)))))))
+
+summary(data2$menopause_age_group)
+
+
+#9 menarche_age_group
+data2$menarche_age <- ifelse(data2$`Age when periods started (menarche) | Instance 0` %in% c("", "Do not know", "Prefer not to answer"),
+  NA,data2$`Age when periods started (menarche) | Instance 0`)
+data2$menarche_age <- as.numeric(data2$menarche_age)
+data2$Early_menarche <- as.factor(
+  ifelse(!is.na(data2$menarche_age) & data2$menarche_age < 12, 1,
+         ifelse(!is.na(data2$menarche_age), 0, NA))
+)
+
+data2$menarche_age_group<-as.factor(ifelse(data2$menarche_age==13,0,
+                                           ifelse(data2$menarche_age<12,1,
+                                                  ifelse(data2$menarche_age==12,2,
+                                                         ifelse(data2$menarche_age==14,3,
+                                                                ifelse(data2$menarche_age>14,4,5))))))
+
+table(data2$menarche_age_group)
+
+#10 reproductive life span
+data2$reproductive_life_span <- ifelse(!is.na(data2$menopause_age) & !is.na(data2$menarche_age),
+                                       data2$menopause_age-data2$menarche_age,NA)
+
+summary(data2$reproductive_life_span)
+data2$reproductive_life_span_group<-as.factor(ifelse(data2$reproductive_life_span<33,0,
+                                               ifelse(data2$reproductive_life_span>=33&data2$reproductive_life_span<=35,1,
+                                                      ifelse(data2$reproductive_life_span>=36&data2$reproductive_life_span<=37,2,
+                                                             ifelse(data2$reproductive_life_span>=38&data2$reproductive_life_span<=39,3,
+                                                                    ifelse(data2$reproductive_life_span>=40&data2$reproductive_life_span<=42,4,
+                                                                           ifelse(data2$reproductive_life_span>42,5,6)))))))
+
+
+summary(data2$reproductive_life_span_group)
+
+#11 hysterectomy
+table(data2$`Ever had hysterectomy (womb removed) | Instance 0`)
+data2$hysterectomy <- ifelse(data2$`Ever had hysterectomy (womb removed) | Instance 0` %in% c("", "Not sure", "Prefer not to answer"),NA,
+                              data2$`Ever had hysterectomy (womb removed) | Instance 0`)
+data2$hysterectomy_age<- as.numeric(ifelse(data2$`Age at hysterectomy | Instance 0` %in% c("", "Do not know", "Prefer not to answer"),NA,
+                             data2$`Age at hysterectomy | Instance 0`))
+data2$hysterectomy <- as.factor(ifelse(!is.na(data2$hysterectomy) & data2$hysterectomy == "Yes",1,
+                                     ifelse(!is.na(data2$hysterectomy), 0, NA)))
+data_hysterectomy<-subset(data2,data2$hysterectomy==1)
+
+#12 oophorectomy
+data2$oophorectomy <- ifelse(data2$`Bilateral oophorectomy (both ovaries removed) | Instance 0` %in% c("", "Not sure", "Prefer not to answer"),NA,
+                             data2$`Bilateral oophorectomy (both ovaries removed) | Instance 0`)
+data2$oophorectomy_age<- as.numeric(ifelse(data2$`Age at bilateral oophorectomy (both ovaries removed) | Instance 0` %in% c("", "Do not know", "Prefer not to answer"),NA,
+                                data2$`Age at bilateral oophorectomy (both ovaries removed) | Instance 0`))
+table(data2$`Bilateral oophorectomy (both ovaries removed) | Instance 0`)
+data2$oophorectomy <- as.factor(ifelse(!is.na(data2$oophorectomy) & data2$oophorectomy == "Yes",1,
+                                       ifelse(!is.na(data2$oophorectomy), 0, NA)))
+summary(data_oophorectomy$oophorectomy_age)
+
+
+#13 HRT
+data2$HRT_therapy <- ifelse(data2$`Ever used hormone-replacement therapy (HRT) | Instance 0` %in% c("", "Prefer not to answer","Do not know"),NA,
+                            data2$`Ever used hormone-replacement therapy (HRT) | Instance 0`)
+data2$HRT_therapy <- as.factor(ifelse(!is.na(data2$HRT_therapy) & data2$HRT_therapy == "Yes",1,
+                                     ifelse(!is.na(data2$HRT_therapy), 0, NA)))
+data2$HRT_start <- as.numeric(ifelse(data2$`Age started hormone-replacement therapy (HRT) | Instance 0` %in% c("", "Prefer not to answer","Do not know"),NA,
+                            data2$`Age started hormone-replacement therapy (HRT) | Instance 0`))
+data2$HRT_end <- ifelse(data2$`Age last used hormone-replacement therapy (HRT) | Instance 0` %in% c("", "Prefer not to answer","Do not know"),NA,
+                          data2$`Age last used hormone-replacement therapy (HRT) | Instance 0`)
+data2$HRT_end <- as.numeric(ifelse(data2$HRT_end == "Still taking HRT", data2$Age,data2$HRT_end))
+data2$HRT_duration <- ifelse(!is.na(data2$HRT_start) & !is.na(data2$HRT_end),
+                                       data2$HRT_end-data2$HRT_start,NA)
+data_HRT<-subset(data2,data2$HRT_therapy==1)
+summary(data_HRT$HRT_duration)
+
+#14 contraceptive
+data2$contraceptive <- ifelse(data2$`Ever taken oral contraceptive pill | Instance 0` %in% c("", "Do not know", "Prefer not to answer"),NA,
+                             data2$`Ever taken oral contraceptive pill | Instance 0`)
+data2$contraceptive <- as.factor(ifelse(!is.na(data2$contraceptive) & data2$contraceptive == "Yes",1,
+                                       ifelse(!is.na(data2$contraceptive), 0, NA)))
+table(data2$`Age when last used oral contraceptive pill`)
+data2$contraceptive_age_strat <-as.numeric(ifelse(data2$`Age started oral contraceptive pill` %in% c("", "Do not know", "Prefer not to answer"),NA,
+                              data2$`Age started oral contraceptive pill`))
+data2$contraceptive_age_end <- ifelse(data2$`Age when last used oral contraceptive pill` %in% c("", "Do not know", "Prefer not to answer"),NA,
+                                        data2$`Age when last used oral contraceptive pill`)
+
+data2$contraceptive_age_end <- as.numeric(ifelse(data2$contraceptive_age_end == "Still taking the pill", data2$Age,data2$contraceptive_age_end))
+data2$contraceptive_duration <- ifelse(!is.na(data2$contraceptive_age_strat) & !is.na(data2$contraceptive_age_end),
+                             data2$contraceptive_age_end-data2$contraceptive_age_strat,NA)
+
+data_contraceptive<-subset(data2,data2$contraceptive==1)
+summary(data_contraceptive$contraceptive_age_strat)
+
+#15 Sequentially examine the effects of individual reproductive risk factors on the incidence of CHD in females with depression
+data2.1<-subset(data2,data2$baseline_MDD_ICD_v2v3_PHQ==1)
+multi_model <- coxph(Surv(data2.1$follow_up_CHD, data2.1$post_CHD) ~
+                       data2.1$HRT_start+Age+BMI+Smoking_status+LDLC+SBP_instance_0+
+                       highest_education+Townsend+
+                       baseline_diabetes_overall_diagnose+baseline_CKD_overall_diagnose+
+                       baseline_stroke_overall_diagnose+baseline_HF_overall_diagnose+
+                       statin_baseline+Antidepressant_drug
+                     ,data = data2.1)
+multiCox_Sum <- summary(multi_model)
+multiCox_Sum
+multiCox_CKDSum <- summary(multi_model)
+multiCox_Sum$coefficients
+multiCox_Sum <- summary(multi_model)
+multiCox_CKDSum <- summary(multi_model)
+HR <- round(multiCox_Sum$coefficients[,2],3)
+pvalue <- round(multiCox_Sum$coefficients[,5],3)
+CIlow = round(multiCox_Sum$conf.int[,3],3)
+CIup = round(multiCox_Sum$conf.int[,4],3)
+result_muiti_model <- data.frame('HR' = HR,
+                                 'CI low' = CIlow,
+                                 'CI up' = CIup, 
+                                 'P Value' = pvalue)
+colnames(result_muiti_model) <- c("HR","CI low","CI up","P Value")
+result_muiti_model
+multiCox_Sum$coefficients[,5]
+
+
