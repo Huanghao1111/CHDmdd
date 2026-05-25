@@ -1,0 +1,121 @@
+#1 Analyze the association between each protein and CHD in individuals with depression
+mdd=subset(data,data$baseline_MDD_ICD_v2v3_PHQ==1)
+mdd=as.data.frame(mdd)
+proteomics <- fread("proteomics_olink_instance0.csv",encoding = "UTF-8")%>%as.data.frame()
+colnames(proteomics)[1]='Participant ID'
+mddpro=merge(mdd,proteomics,by="Participant ID")
+cols=colnames(proteomics)[-1]
+median_list <- list()
+for (col in cols) {
+  median_value <- median(mddpro[[col]], na.rm = TRUE)
+  mddpro[[col]][is.na(mddpro[[col]])] <- median_value
+  median_list[[col]] <- median_value
+}
+model=c(
+  'post_CHD','follow_up_CHD',
+  "Age",'Sex',"BMI","Smoking_status","LDLC","SBP_instance_0",
+        "highest_education","Townsend",
+        "baseline_diabetes_overall_diagnose","baseline_CKD_overall_diagnose",
+        "baseline_stroke_overall_diagnose",
+        "baseline_HF_overall_diagnose",
+        "statin_baseline",
+  "Antidepressant_drug",
+  'fasttime','assessment_centre')
+i=cols[1]
+allcox <- data.frame('HR' = numeric(),
+                     'CI low' = numeric(),
+                     'CI up' = numeric(),
+                     'P Value' = numeric(),
+                     "coef"=numeric(),
+                     'FDR' =  numeric())
+write_clip(cols)
+cols[2498:length(cols)]
+cols[2498]
+for(i in cols)#[2498:length(cols)])
+{
+  modelsingle=c(i,model)
+  data_cox=mddpro[, modelsingle]
+  cox_result <- coxph(Surv(follow_up_CHD, post_CHD) ~., data = data_cox)
+  multiCox_Sum <- summary(cox_result)
+  HR <- round(multiCox_Sum$coefficients[,2],3)
+  pvalue <- round(multiCox_Sum$coefficients[,5],3)
+  CIlow = round(multiCox_Sum$conf.int[,3],3)
+  CIup = round(multiCox_Sum$conf.int[,4],3)
+  coef <- coef(cox_result)
+  p_values <- summary(cox_result)$coefficients[, "Pr(>|z|)"]
+  fdr <- p.adjust(p_values, method = "fdr")
+  
+  result_muiti_model <- data.frame('HR' = HR,
+                                   'CI low' = CIlow,
+                                   'CI up' = CIup,
+                                   'P Value' = pvalue,
+                                   'FDR' = fdr,
+                                   "coef"=coef)
+  
+  allcox=rbind(allcox,result_muiti_model[1,1:6])}
+write_clip(allcox)
+
+#2 Test for Sex Interaction
+pro287=subset(allcox,allcox$FDR<0.05)
+rownames(allcox)
+fdrcol <- gsub("`", "", rownames(pro287))
+new_fdrcol <- sapply(strsplit(i, ";"), "[", 1)
+data_cox
+allcox1 <- data.frame('HR' = numeric(),
+                     'CI low' = numeric(),
+                     'CI up' = numeric(),
+                     'P Value' = numeric(),
+                     "coef"=numeric(),
+                     'FDR' =  numeric())
+allcox2 <- data.frame('HR' = numeric(),
+                     'CI low' = numeric(),
+                     'CI up' = numeric(),
+                     'P Value' = numeric(),
+                     "coef"=numeric(),
+                     'FDR' =  numeric())
+allcox3 <- data.frame('HR' = numeric(),
+                      'CI low' = numeric(),
+                      'CI up' = numeric(),
+                      'P Value' = numeric(),
+                      "coef"=numeric(),
+                      'FDR' =  numeric())
+for(i in fdrcol)
+{
+  
+  modelsingle=c(i,model)
+  data_cox=mddpro[, modelsingle]
+  new_name <- strsplit(i, ";")[[1]][1]
+  
+names(data_cox)[1]=new_name
+  formula_str <- paste0('Surv(follow_up_CHD, post_CHD) ~.', 
+                        # paste(modelsingle, collapse = '+'), 
+                        '+', new_name, '*Sex')
+  cox_formula <- as.formula(formula_str)
+  
+  
+  
+  
+  cox_result <- coxph(cox_formula
+                      , data = data_cox)
+  multiCox_Sum <- summary(cox_result)
+  HR <- round(multiCox_Sum$coefficients[,2],3)
+  pvalue <- round(multiCox_Sum$coefficients[,5],3)
+  CIlow = round(multiCox_Sum$conf.int[,3],3)
+  CIup = round(multiCox_Sum$conf.int[,4],3)
+  coef <- coef(cox_result)[1]
+  p_values <- summary(cox_result)$coefficients[, "Pr(>|z|)"]
+  fdr <- p.adjust(p_values, method = "fdr")
+  
+  result_muiti_model <- data.frame('HR' = HR,
+                                   'CI low' = CIlow,
+                                   'CI up' = CIup,
+                                   'P Value' = pvalue,
+                                   'FDR' = fdr,
+                                   "coef"=coef)
+  allcox1=rbind(allcox1,result_muiti_model[1,1:6])
+  allcox2=rbind(allcox2,result_muiti_model[18,1:6])
+  allcox3=rbind(allcox2,result_muiti_model[3,1:6])
+  
+  
+}
+write_clip(allcox2)
