@@ -1,0 +1,170 @@
+#1 Life's Essential 8 Cleaning
+#1 BMI
+data$BMIgroup<-ifelse(data$BMI<25,0,
+                      ifelse(data$BMI>=25 & data$BMI<30,1,
+                             ifelse(data$BMI>=30 & data$BMI<35,2,3)))
+
+#2 PA
+data$MVPA_time<-data$`MET minutes per week for moderate activity | Instance 0`+data$`MET minutes per week for vigorous activity | Instance 0`
+data$PAgroup<-ifelse(data$MVPA_time>=150,0,
+                     ifelse(data$MVPA_time>=120 & data$MVPA_time<150, 1,
+                            ifelse(data$MVPA_time>=90 & data$MVPA_time<120, 2,
+                                   ifelse(data$MVPA_time>=60 & data$MVPA_time<90, 3, 4))))
+                                                          
+#3 Sleep
+data$Sleep_duration<-data$"Sleep duration | Instance 0"
+data$sleepgroup<-ifelse(data$Sleep_duration>=7 & data$Sleep_duration<9,0,
+                         ifelse(data$Sleep_duration>=9 & data$Sleep_duration<10,1,
+                                ifelse(data$Sleep_duration>=6 & data$Sleep_duration<7, 2,
+                                       ifelse((data$Sleep_duration>=5 & data$Sleep_duration<6)|data$Sleep_duration>=10,3,4))))
+#4 HbA1c
+data$HbA1c_percent<-data$HbA1c*0.0915+2.152
+summary(data$HbA1c_percent)
+data$HbA1cgroup<-ifelse(data$HbA1c_percent<5.7 & data$baseline_diabetes_overall_diagnose==0,0,
+                         ifelse(data$HbA1c_percent>=5.7 & data$HbA1c_percent<6.4 &data$baseline_diabetes_overall_diagnose==0,1,
+                                ifelse(data$HbA1c_percent<7 & data$baseline_diabetes_overall_diagnose==1,2,3)))
+#5 BP
+data$BPgroup<-ifelse(data$SBP_instance_0<120 & data$DBP_instance_0<80,1,
+                       ifelse(data$SBP_instance_0>=120 & data$SBP_instance_0<130 & data$DBP_instance_0<80,0,
+                              ifelse((data$SBP_instance_0>=130 & data$SBP_instance_0<140) | (data$DBP_instance_0>=80 & data$DBP_instance_0<90),2,3)))
+                              
+#6 Non_HDLC
+data$LDLC<-data$`LDL Cholesterol | Instance 0`
+summary(data$`LDL Cholesterol | Instance 0`)
+data$CHOL<-data$`Total Cholesterol | Instance 0`
+data$HDLC<-data$`HDL cholesterol | Instance 0`
+data$CHOL_met<-data$CHOL*38.66
+data$HDLC_met<-data$HDLC*38.66
+data$Non_HDLC<-data$CHOL_met-data$HDLC_met
+data$Non_HDLCgroup<-ifelse(data$Non_HDLC<130,0,
+                           ifelse(data$Non_HDLC>=130 &data$Non_HDLC<160,1,
+                                  ifelse(data$Non_HDLC>=160 & data$Non_HDLC<190,2,3)))
+
+
+#7 Nicotine exposure
+data$Smoke_state<-data$`Smoking status | Instance 0`
+data$Smoke_state<-ifelse(data$Smoke_state==-3|data$Smoke_state==-1,NA,data$Smoke_state)
+data$Age_stopped_smoking<-ifelse(data$"Age stopped smoking | Instance 0"==-3 | data$"Age stopped smoking | Instance 0"==-1,NA,data$"Age stopped smoking | Instance 0")
+summary(data$Age_stopped_smoking)
+data$`Age started smoking in current smokers | Instance 0`
+data$`Age started smoking in former smokers | Instance 0`
+data$start_smoke_age <- ifelse(
+  data$Smoke_state == 1,data$`Age started smoking in former smokers | Instance 0`,
+   ifelse(data$Smoke_state == 2, data$`Age started smoking in current smokers | Instance 0`,NA))
+data$smoking_years <- case_when(
+  data$Smoke_state == 0 ~ 0,
+  data$Smoke_state == 1 & !is.na(data$start_smoke_age) & !is.na(data$Age_stopped_smoking) ~ 
+    data$Age_stopped_smoking - data$start_smoke_age,
+  data$Smoke_state == 2 & !is.na(data$start_smoke_age) & !is.na(data$Age) ~ 
+    data$Age - data$start_smoke_age,TRUE ~ NA_real_)
+data$smokegroup<-ifelse(data$Smoke_state==0,0,
+                          ifelse(data$Smoke_state==1 & data$quit_time>=5,1,
+                                 ifelse(data$Smoke_state==1 & data$quit_time>=1 & data$quit_time<5,2,
+                                        ifelse(data$Smoke_state==1 & data$quit_time<1,3,
+                                               ifelse(data$Smoke_state==2,4,NA)))))
+                    
+#8 Healthy diet (Detailed data cleaning logic is provided in Supplementary Table 2)
+data$food_score<-data$fruits_score+
+  data$vegetable_score+
+  data$fish_score+
+  data$dairy_score+
+  data$oils_score+
+  data$Whole_grains_score+
+  data$refined_grains_score+
+  data$processed_meat_score+
+  data$unprocessed_meats_score+
+  data$sugar_score
+data$foodgroupl<-ifelse(data$food_score>=8,0,
+                        ifelse(data$food_score>=6 &data$food_score<8,1,
+                          ifelse(data$food_score>=4 &data$food_score<6,2,
+                          ifelse(data$food_score>=2 &data$food_score<4,3,
+                            ifelse(data$food_score<2,4,NA)))))
+
+
+#9 LE8 analyses
+data3<-subset(data,data$baseline_MDD_ICD_v2v3_PHQ==1)
+multi_model <- coxph(Surv(data3$follow_up_CHD, data3$post_CHD) ~
+                       data3$sleepgroup*data3$Sex+
+                       SBP_instance_0+
+                       BMI+
+                       baseline_diabetes_overall_diagnose+
+                       LDLC+statin_baseline+
+                       Age+Smoking_status+highest_education+Townsend+
+                       baseline_CKD_overall_diagnose+baseline_stroke_overall_diagnose+baseline_HF_overall_diagnose+
+                       Antidepressant_drug
+                       ,data = data3)
+multiCox_Sum <- summary(multi_model)
+multiCox_Sum
+multiCox_CKDSum <- summary(multi_model)
+multiCox_Sum$coefficients
+multiCox_Sum <- summary(multi_model)
+multiCox_CKDSum <- summary(multi_model)
+HR <- round(multiCox_Sum$coefficients[,2],3)
+pvalue <- round(multiCox_Sum$coefficients[,5],3)
+CIlow = round(multiCox_Sum$conf.int[,3],3)
+CIup = round(multiCox_Sum$conf.int[,4],3)
+result_muiti_model <- data.frame('HR' = HR,
+                                 'CI low' = CIlow,
+                                 'CI up' = CIup, 
+                                 'P Value' = pvalue)
+colnames(result_muiti_model) <- c("HR","CI low","CI up","P Value")
+result_muiti_model
+
+data3.1<-subset(data3,data3$Sex==1)
+multi_model <- coxph(Surv(data3.1$follow_up_CHD, data3.1$post_CHD) ~
+                       data3.1$sleepgroup+
+                       SBP_instance_0+
+                       BMI+
+                       baseline_diabetes_overall_diagnose+
+                       LDLC+statin_baseline+
+                       Age+Smoking_status+highest_education+Townsend+
+                       baseline_CKD_overall_diagnose+baseline_stroke_overall_diagnose+baseline_HF_overall_diagnose+
+                       Antidepressant_drug
+                     ,data = data3.1)
+multiCox_Sum <- summary(multi_model)
+multiCox_Sum
+multiCox_CKDSum <- summary(multi_model)
+multiCox_Sum$coefficients
+multiCox_Sum <- summary(multi_model)
+multiCox_CKDSum <- summary(multi_model)
+HR <- round(multiCox_Sum$coefficients[,2],3)
+pvalue <- round(multiCox_Sum$coefficients[,5],3)
+CIlow = round(multiCox_Sum$conf.int[,3],3)
+CIup = round(multiCox_Sum$conf.int[,4],3)
+result_muiti_model <- data.frame('HR' = HR,
+                                 'CI low' = CIlow,
+                                 'CI up' = CIup, 
+                                 'P Value' = pvalue)
+colnames(result_muiti_model) <- c("HR","CI low","CI up","P Value")
+result_muiti_model
+multiCox_Sum$coefficients[,5]
+
+#
+data3.2<-subset(data3,data3$Sex==0)
+multi_model <- coxph(Surv(data3.2$follow_up_CHD, data3.2$post_CHD) ~
+                       data3.2$sleepgroup+
+                       SBP_instance_0+
+                       BMI+
+                       baseline_diabetes_overall_diagnose+
+                       LDLC+statin_baseline+
+                       Age+Smoking_status+highest_education+Townsend+
+                       baseline_CKD_overall_diagnose+baseline_stroke_overall_diagnose+baseline_HF_overall_diagnose+
+                       Antidepressant_drug
+                     ,data = data3.2)
+multiCox_Sum <- summary(multi_model)
+multiCox_Sum
+multiCox_CKDSum <- summary(multi_model)
+multiCox_Sum$coefficients
+multiCox_Sum <- summary(multi_model)
+multiCox_CKDSum <- summary(multi_model)
+HR <- round(multiCox_Sum$coefficients[,2],3)
+pvalue <- round(multiCox_Sum$coefficients[,5],3)
+CIlow = round(multiCox_Sum$conf.int[,3],3)
+CIup = round(multiCox_Sum$conf.int[,4],3)
+result_muiti_model <- data.frame('HR' = HR,
+                                 'CI low' = CIlow,
+                                 'CI up' = CIup, 
+                                 'P Value' = pvalue)
+colnames(result_muiti_model) <- c("HR","CI low","CI up","P Value")
+result_muiti_model
+multiCox_Sum$coefficients[,5]
