@@ -1,0 +1,267 @@
+#1 prepare_cohort_packages
+rm(list = ls())
+gc()
+library(data.table)
+library(tableone)
+library(survival)
+library(survivalROC)
+library(survminer)
+library(corrplot)
+library(ggplot2)
+library(Formula)
+library(rms)
+library(ggcorrplot)
+library(ggpubr)
+library(ggthemes)
+library(Greg)
+library(Hmisc)
+library(lattice)
+library(MASS)
+library(mstate)
+library(nlme)
+library(openxlsx)
+library(patchwork)
+library(pROC)
+library(ranger)
+library(RColorBrewer)
+library(ResourceSelection)  
+library(rmda)
+library(ROCR)
+library(SparseM)
+library(splines)
+library(stats)
+library(stringr)
+library(stringr)
+library(rcssci)
+library(caret)
+library(cmprsk)
+library(dlnm)
+library(plyr)
+library(dplyr)
+library(readxl)
+library(mediation)
+library(dplyr) 
+library(glmnet) 
+library(ggplot2) 
+library(survival)  
+library(mice)     
+library(dplyr) 
+
+#2 Inclusion and Exclusion Process
+# Data preprocessing (assuming you have applied for UKB data access and processed variables are stored on the UKB analysis platform)
+data <- data.table::fread("UKbiobank_20260113_HHZ.csv")
+data <- subset(data, data$`Ethnic background | Instance 0` == "1001" |
+               data$`Ethnic background | Instance 0` == "1002" |
+               data$`Ethnic background | Instance 0` == "1003" |
+               data$`Ethnic background | Instance 0` == "1004" |
+               data$`Ethnic background | Instance 0` == "1")
+data<-subset(data,data$baseline_CHD!=1)
+data<-subset(data,data$`Genotype measurement batch`!="NA")
+data<-subset(data,data$`Genetic principal components | Array 1`!="NA")
+data$`Genetic sex`<-as.factor(ifelse(data$`Genetic sex`=="Male",1,0))
+data<-subset(data,data$`Genetic sex`==data$Sex)
+data<-subset(data,data$`Genetic kinship to other participants`!="Ten or more third-degree relatives identified")
+data<-subset(data,data$`Sex chromosome aneuploidy`!="Yes")
+table(data$baseline_MDD_ICD_v2v3_PHQ)
+
+#3 Covariate Adjustment and Primary Analysis
+data$Smoking_status<- ifelse(grepl("-3", data$`Smoking status | Instance 0`),
+                             NA,data$`Smoking status | Instance 0`)
+data$drinker_status<- ifelse(grepl("-3", data$`Alcohol drinker status | Instance 0`),
+                             NA,data$`Alcohol drinker status | Instance 0`)
+data$highest_education <- ifelse(grepl("1", data$`Qualifications | Instance 0`),1,
+                                 ifelse(data$`Qualifications | Instance 0` == "-3", NA, 0))
+
+
+data$Age<-data$`Age at recruitment`
+data$BMI<-data$`Body mass index (BMI) | Instance 0`
+data$MET<-data$`MET minutes per week for moderate activity | Instance 0`
+data$Townsend<-data$`Townsend deprivation index at recruitment`
+data$HbA1c<-data$`Glycated haemoglobin (HbA1c) | Instance 0`
+data$LDLC<-data$`LDL direct | Instance 0`
+data$CHOL<-data$`Cholesterol | Instance 0`
+data$HDLC<-data$`HDL cholesterol | Instance 0`
+data$TG<-data$`Triglycerides | Instance 0`
+data$APOB<-data$`Apolipoprotein B | Instance 0`
+data$lpa<-data$`Lipoprotein A | Instance 0`
+data$Genotype_batch<-data$`Genotype measurement batch`
+data$pc1<-data$`Genetic principal components | Array 1`
+data$pc2<-data$`Genetic principal components | Array 2`
+data$pc3<-data$`Genetic principal components | Array 3`
+data$pc4<-data$`Genetic principal components | Array 4`
+data$pc5<-data$`Genetic principal components | Array 5`
+data$pc6<-data$`Genetic principal components | Array 6`
+data$pc7<-data$`Genetic principal components | Array 7`
+data$pc8<-data$`Genetic principal components | Array 8`
+data$pc9<-data$`Genetic principal components | Array 9`
+data$pc10<-data$`Genetic principal components | Array 10`
+data$Genotype_batch1 <- ifelse(grepl("^Batch", data$Genotype_batch),0,1)
+data$assessment_centre<-data$`UK Biobank assessment centre | Instance 0`
+data$CRP<-data$`C-reactive protein | Instance 0`
+data$leukocyte<-data$`White blood cell (leukocyte) count | Instance 0`
+median_value2 <- median(data$Townsend, na.rm = TRUE)
+data$Townsend1<-as.factor(ifelse(data$Townsend>(-2.28),1,0))
+data$sex_MDD_group<-as.factor(ifelse(data$Sex==1&data$baseline_MDD_ICD_v2v3_PHQ==0,0,
+                                     ifelse(data$Sex==1&data$baseline_MDD_ICD_v2v3_PHQ==1,1,
+                                            ifelse(data$Sex==0&data$baseline_MDD_ICD_v2v3_PHQ==0,2,3))))
+#4 main analysis
+multi_model<-coxph(Surv(data$follow_up_CHD, data$post_CHD) ~
+                       data$baseline_MDD_ICD_v2v3_PHQ*Sex+Age+BMI+Smoking_status+LDLC+SBP_instance_0+
+                       highest_education+Townsend+
+                       baseline_diabetes_overall_diagnose+baseline_CKD_overall_diagnose+
+                       baseline_stroke_overall_diagnose+baseline_HF_overall_diagnose+statin_baseline+Antidepressant_drug
+                     ,data = data)
+multiCox_Sum <- summary(multi_model)
+multiCox_Sum
+multiCox_CKDSum <- summary(multi_model)
+multiCox_Sum$coefficients
+multiCox_Sum <- summary(multi_model)
+multiCox_CKDSum <- summary(multi_model)
+HR <- round(multiCox_Sum$coefficients[,2],3)
+pvalue <- round(multiCox_Sum$coefficients[,5],3)
+CIlow = round(multiCox_Sum$conf.int[,3],3)
+CIup = round(multiCox_Sum$conf.int[,4],3)
+result_muiti_model <- data.frame('HR' = HR,
+                                 'CI low' = CIlow,
+                                 'CI up' = CIup, 
+                                 'P Value' = pvalue)
+colnames(result_muiti_model) <- c("HR","CI low","CI up","P Value")
+result_muiti_model
+multiCox_Sum$coefficients[,5]
+
+data1<-subset(data,data$Sex==1)
+multi_model <- coxph(Surv(data1$follow_up_CHD, data1$post_CHD) ~
+                       data1$baseline_MDD_ICD_v2v3_PHQ+Age+BMI+Smoking_status+LDLC+SBP_instance_0+
+                       highest_education+Townsend+
+                       baseline_diabetes_overall_diagnose+baseline_CKD_overall_diagnose+
+                       baseline_stroke_overall_diagnose+baseline_HF_overall_diagnose+statin_baseline+Antidepressant_drug
+                     ,data = data1)
+multiCox_Sum <- summary(multi_model)
+multiCox_Sum
+multiCox_CKDSum <- summary(multi_model)
+multiCox_Sum$coefficients
+multiCox_Sum <- summary(multi_model)
+multiCox_CKDSum <- summary(multi_model)
+HR <- round(multiCox_Sum$coefficients[,2],3)
+pvalue <- round(multiCox_Sum$coefficients[,5],3)
+CIlow = round(multiCox_Sum$conf.int[,3],3)
+CIup = round(multiCox_Sum$conf.int[,4],3)
+result_muiti_model <- data.frame('HR' = HR,
+                                 'CI low' = CIlow,
+                                 'CI up' = CIup, 
+                                 'P Value' = pvalue)
+colnames(result_muiti_model) <- c("HR","CI low","CI up","P Value")
+result_muiti_model
+multiCox_Sum$coefficients[,5]
+ph_test <- cox.zph(multi_model)
+print(ph_test)
+
+data2<-subset(data,data$Sex==0)
+multi_model <- coxph(Surv(data2$follow_up_CHD, data2$post_CHD) ~
+                       data2$baseline_MDD_ICD_v2v3_PHQ+Age+BMI+Smoking_status+LDLC+data2$SBP_instance_0+
+                       highest_education+Townsend+
+                       baseline_diabetes_overall_diagnose+baseline_CKD_overall_diagnose+
+                       data2$baseline_stroke_overall_diagnose+data2$baseline_HF_overall_diagnose+
+                       statin_baseline+Antidepressant_drug
+                     ,data = data2)
+multiCox_Sum <- summary(multi_model)
+multiCox_Sum
+multiCox_CKDSum <- summary(multi_model)
+multiCox_Sum$coefficients
+multiCox_Sum <- summary(multi_model)
+multiCox_CKDSum <- summary(multi_model)
+HR <- round(multiCox_Sum$coefficients[,2],3)
+pvalue <- round(multiCox_Sum$coefficients[,5],3)
+CIlow = round(multiCox_Sum$conf.int[,3],3)
+CIup = round(multiCox_Sum$conf.int[,4],3)
+result_muiti_model <- data.frame('HR' = HR,
+                                 'CI low' = CIlow,
+                                 'CI up' = CIup, 
+                                 'P Value' = pvalue)
+colnames(result_muiti_model) <- c("HR","CI low","CI up","P Value")
+result_muiti_model
+multiCox_Sum$coefficients[,5]
+ph_test <- cox.zph(multi_model)
+print(ph_test)
+
+#5 KM Curve
+data$sex_MDD_group<-as.factor(ifelse(data$Sex==1&data$baseline_MDD_ICD_v2v3_PHQ==0,0,
+                                     ifelse(data$Sex==1&data$baseline_MDD_ICD_v2v3_PHQ==1,1,
+                                            ifelse(data$Sex==0&data$baseline_MDD_ICD_v2v3_PHQ==0,2,3))))
+table(data$post_baseline_CAD_overall_diagnose)
+table(data$sex_MDD_group)
+
+
+fit <- survfit(Surv(data1$follow_up_CHD, data1$post_CHD) ~
+                 data1$baseline_MDD_ICD_v2v3_PHQ,data=data1)
+ggsurvplot(fit,data=data1,risk.table=F,pval.coord=c(2,0.05),
+           plot.background =element_rect(fill ="#9dc3e6"),
+           palette = c("#0077b6","#ff6f61"),
+           pval = T,conf.int =F,xlab ='Time in year',xscale=365,
+           break.time.by=365,
+           legend.labs = c("male without MDD","male with MDD"),
+           legend.title = " ",xlim = c(0,365*14),ylim = c(1,0.85),censor=F)
+
+fit <- survfit(Surv(data2$follow_up_CHD, data2$post_CHD) ~
+                 data2$baseline_MDD_ICD_v2v3_PHQ,data=data2)
+ggsurvplot(fit,data=data2,risk.table=F,pval.coord=c(2,0.05),
+           plot.background =element_rect(fill ="#9dc3e6"),
+           palette = c("#0077b6","#ff6f61"),
+           pval = T,conf.int =F,xlab ='Time in year',xscale=365,
+           break.time.by=365,
+           legend.labs = c("female without MDD","female with MDD"),
+           legend.title = " ",xlim = c(0,365*14),ylim = c(1,0.85),censor=F)
+
+#6 basleine Table
+data_base <- data[, c(
+  #Demographic
+  "Age","Sex","BMI","Smoking_status", "drinker_status",
+  "SBP_instance_0","DBP_instance_0",
+  "MET","Townsend","highest_education",
+  ## comorbidity
+  "baseline_CKD_overall_diagnose","baseline_hypertension_overall_diagnose",
+  "baseline_stroke_overall_diagnose","baseline_diabetes_overall_diagnose","baseline_HF_overall_diagnose",
+  ## Laboratory
+  "HbA1c","LDLC",
+  ### medicine
+  "Antidepressant_drug","statin_baseline",
+  ##group
+  "sex_MDD_group")]
+
+colnames(data_base)[colnames(data_base) %in% colnames(data)]
+str(data_base)
+vars <- names(data_base)
+num_vars <- c("Age","BMI","SBP_instance_0","DBP_instance_0","MET","Townsend",
+              "HbA1c","LDLC")
+cat_vars <- vars[vars %in% num_vars == F]
+data_base <- data_base %>% as.data.frame()
+for (i in cat_vars) {
+  print(i)
+  data_base[,c(i)] <- as.factor(data_base[,c(i)])
+}
+num_vars[!(num_vars %in% colnames(data_base))]
+data_base[, num_vars] <- apply(data_base[, num_vars], MARGIN = 2, FUN = as.numeric)
+str(data_base)
+non_vars <- c("MET","Townsend")
+data_base <- data_base %>% as.data.frame()
+tab0 <- CreateTableOne(data = data_base,
+                       strata = "sex_MDD_group", 
+                       vars = vars, 
+                       factorVars = cat_vars,
+                       addOverall = TRUE,
+                       smd = TRUE
+)
+
+tab0  <- print(tab0,  
+               contDigits  = 2, 
+               catDigits = 1,
+               pDigits = 4, 
+               quote = FALSE,   
+               noSpaces = TRUE, 
+               showAllLevels=F,
+               smd = TRUE,
+               nonnormal = non_vars
+               # nonnormal = non_vars
+)
+
+write.csv(tab0,file="baseline_MDD.CSV")
