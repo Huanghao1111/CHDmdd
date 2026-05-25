@@ -1,7 +1,7 @@
 # Sex-specific effects of depression on the incidence and risk factors for coronary heart disease: insights from multi-omics approaches—Supplement code
 
 1. Two-sample Mendelian randomization:
-All GWAS summary statistics used in this study have been deposited in Zenodo and are publicly available at:https://doi.org/10.5281/zenodo.20374326.
+All GWAS summary statistics used in this study have been deposited in Zenodo and are publicly available at: https://doi.org/10.5281/zenodo.20374326.
 Detailed information on data sources is provided. The analysis code for the two-sample MR is provided here.
 
 2. Prospective cohort analysis using the UK Biobank:
